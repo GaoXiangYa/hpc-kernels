@@ -1,259 +1,62 @@
-#include <gtest/gtest.h>
-#include <vector>
+#include "test_utils.h"
 #include "gemm.h"
-#include "utils.h"
+#include <vector>
 
-void gemm_ref(const float* A, const float* B, float* C, int M, int N, int K,
-              float alpha = 1.0f, float beta = 0.0f) {
+// CPU reference
+static void gemm_ref(const float* A, const float* B, float* C, int M, int N,
+                     int K, float alpha = 1.0f, float beta = 0.0f) {
   for (int m = 0; m < M; ++m) {
     for (int n = 0; n < N; ++n) {
       float sum = 0.0f;
-      for (int k = 0; k < K; ++k) {
+      for (int k = 0; k < K; ++k)
         sum += A[m * K + k] * B[k * N + n];
-      }
       C[m * N + n] = alpha * sum + beta * C[m * N + n];
     }
   }
 }
 
-TEST(GEMM, gemm_v0) {
-  constexpr int M = 4096;
-  constexpr int N = 1024;
-  constexpr int K = 2048;
+using GEMMFunc = void (*)(const float*, const float*, float*, int, int, int,
+                          float, float);
 
-  std::vector<float> A(M * K, 0.0f);
-  std::vector<float> B(K * N, 0.0f);
-  std::vector<float> C_cpu(M * N, 0.0f);
-  std::vector<float> C_ocl(M * N, 0.0f);
+struct GEMMVariant {
+  const char* name;
+  GEMMFunc    func;
+  float       alpha = 1.0f;
+  float       beta  = 0.0f;
+};
 
-  set_random_values(A, -1.0f, 1.0f);
-  set_random_values(B, -1.0f, 1.0f);
+class GEMMTest : public ::testing::TestWithParam<GEMMVariant> {
+protected:
+  static constexpr int M = 4096, N = 1024, K = 2048;
+  std::vector<float> A, B, C_cpu, C_ocl;
 
-  gemm_ref(A.data(), B.data(), C_cpu.data(), M, N, K);
-  gemm_v0(A.data(), B.data(), C_ocl.data(), M, N, K);
-
-  constexpr float kEpsilon = 1e-3f;
-  for (int i = 0; i < M * N; ++i) {
-    EXPECT_NEAR(C_ocl[i], C_cpu[i], kEpsilon);
+  void SetUp() override {
+    A = random_vec(M * K);
+    B = random_vec(K * N);
+    C_cpu.assign(M * N, 0.0f);
+    C_ocl.assign(M * N, 0.0f);
   }
+};
+
+TEST_P(GEMMTest, Correctness) {
+  auto [name, func, alpha, beta] = GetParam();
+  gemm_ref(A.data(), B.data(), C_cpu.data(), M, N, K, alpha, beta);
+  func(A.data(), B.data(), C_ocl.data(), M, N, K, alpha, beta);
+  expect_near(C_ocl, C_cpu, 1e-3f);
 }
 
-TEST(GEMM, gemm_v1) {
-  constexpr int M = 4096;
-  constexpr int N = 1024;
-  constexpr int K = 2048;
-
-  std::vector<float> A(M * K, 0.0f);
-  std::vector<float> B(K * N, 0.0f);
-  std::vector<float> C_cpu(M * N, 0.0f);
-  std::vector<float> C_ocl(M * N, 0.0f);
-
-  set_random_values(A, -1.0f, 1.0f);
-  set_random_values(B, -1.0f, 1.0f);
-
-  gemm_ref(A.data(), B.data(), C_cpu.data(), M, N, K);
-  gemm_v1(A.data(), B.data(), C_ocl.data(), M, N, K);
-
-  constexpr float kEpsilon = 1e-3f;
-  for (int i = 0; i < M * N; ++i) {
-    EXPECT_NEAR(C_ocl[i], C_cpu[i], kEpsilon);
-  }
-}
-
-TEST(GEMM, gemm_v2) {
-  constexpr int M = 4096;
-  constexpr int N = 1024;
-  constexpr int K = 2048;
-
-  std::vector<float> A(M * K, 0.0f);
-  std::vector<float> B(K * N, 0.0f);
-  std::vector<float> C_cpu(M * N, 0.0f);
-  std::vector<float> C_ocl(M * N, 0.0f);
-
-  set_random_values(A, -1.0f, 1.0f);
-  set_random_values(B, -1.0f, 1.0f);
-
-  gemm_ref(A.data(), B.data(), C_cpu.data(), M, N, K);
-  gemm_v2(A.data(), B.data(), C_ocl.data(), M, N, K);
-
-  constexpr float kEpsilon = 1e-3f;
-  for (int i = 0; i < M * N; ++i) {
-    ASSERT_NEAR(C_ocl[i], C_cpu[i], kEpsilon);
-  }
-}
-
-TEST(GEMM, gemm_v3) {
-  constexpr int M = 4096;
-  constexpr int N = 1024;
-  constexpr int K = 2048;
-
-  std::vector<float> A(M * K, 0.0f);
-  std::vector<float> B(K * N, 0.0f);
-  std::vector<float> C_cpu(M * N, 0.0f);
-  std::vector<float> C_ocl(M * N, 0.0f);
-
-  set_random_values(A, -1.0f, 1.0f);
-  set_random_values(B, -1.0f, 1.0f);
-
-  gemm_ref(A.data(), B.data(), C_cpu.data(), M, N, K);
-  gemm_v3(A.data(), B.data(), C_ocl.data(), M, N, K);
-
-  constexpr float kEpsilon = 1e-3f;
-  for (int i = 0; i < M * N; ++i) {
-    ASSERT_NEAR(C_ocl[i], C_cpu[i], kEpsilon);
-  }
-}
-
-TEST(GEMM, gemm_v4) {
-  constexpr int M = 4096;
-  constexpr int N = 1024;
-  constexpr int K = 2048;
-
-  std::vector<float> A(M * K, 0.0f);
-  std::vector<float> B(K * N, 0.0f);
-  std::vector<float> C_cpu(M * N, 0.0f);
-  std::vector<float> C_ocl(M * N, 0.0f);
-
-  set_random_values(A, -1.0f, 1.0f);
-  set_random_values(B, -1.0f, 1.0f);
-
-  gemm_ref(A.data(), B.data(), C_cpu.data(), M, N, K);
-  gemm_v4(A.data(), B.data(), C_ocl.data(), M, N, K);
-
-  constexpr float kEpsilon = 1e-3f;
-  for (int i = 0; i < M * N; ++i) {
-    ASSERT_NEAR(C_ocl[i], C_cpu[i], kEpsilon);
-  }
-}
-
-TEST(GEMM, gemm_v5) {
-  constexpr int M = 4096;
-  constexpr int N = 1024;
-  constexpr int K = 2048;
-
-  std::vector<float> A(M * K, 0.0f);
-  std::vector<float> B(K * N, 0.0f);
-  std::vector<float> C_cpu(M * N, 0.0f);
-  std::vector<float> C_ocl(M * N, 0.0f);
-
-  set_random_values(A, -1.0f, 1.0f);
-  set_random_values(B, -1.0f, 1.0f);
-
-  gemm_ref(A.data(), B.data(), C_cpu.data(), M, N, K, -1.0, 0.1);
-  gemm_v5(A.data(), B.data(), C_ocl.data(), M, N, K, -1.0, 0.1);
-
-  constexpr float kEpsilon = 1e-3f;
-  for (int i = 0; i < M * N; ++i) {
-    ASSERT_NEAR(C_ocl[i], C_cpu[i], kEpsilon);
-  }
-}
-
-TEST(GEMM, gemm_v6) {
-  constexpr int M = 4096;
-  constexpr int N = 1024;
-  constexpr int K = 2048;
-
-  std::vector<float> A(M * K, 0.0f);
-  std::vector<float> B(K * N, 0.0f);
-  std::vector<float> C_cpu(M * N, 0.0f);
-  std::vector<float> C_ocl(M * N, 0.0f);
-
-  set_random_values(A, -1.0f, 1.0f);
-  set_random_values(B, -1.0f, 1.0f);
-
-  gemm_ref(A.data(), B.data(), C_cpu.data(), M, N, K, -1.0, 0.1);
-  gemm_v6(A.data(), B.data(), C_ocl.data(), M, N, K, -1.0, 0.1);
-
-  constexpr float kEpsilon = 1e-3f;
-  for (int i = 0; i < M * N; ++i) {
-    ASSERT_NEAR(C_ocl[i], C_cpu[i], kEpsilon);
-  }
-}
-
-TEST(GEMM, gemm_v7) {
-  constexpr int M = 4096;
-  constexpr int N = 1024; 
-  constexpr int K = 2048;
-
-  std::vector<float> A(M * K, 0.0f);
-  std::vector<float> B(K * N, 0.0f);
-  std::vector<float> C_cpu(M * N, 0.0f);
-  std::vector<float> C_ocl(M * N, 0.0f);
-
-  set_random_values(A, -1.0f, 1.0f);
-  set_random_values(B, -1.0f, 1.0f);
-
-  gemm_ref(A.data(), B.data(), C_cpu.data(), M, N, K, 1.0, 0.1f);
-  gemm_v7(A.data(), B.data(), C_ocl.data(), M, N, K, 1.0, 0.1f);
-
-  constexpr float kEpsilon = 1e-3f;
-  for (int i = 0; i < M * N; ++i) {
-    ASSERT_NEAR(C_ocl[i], C_cpu[i], kEpsilon);
-  }
-}
-
-TEST(GEMM, gemm_v8) {
-  constexpr int M = 4096;
-  constexpr int N = 1024; 
-  constexpr int K = 2048;
-
-  std::vector<float> A(M * K, 0.0f);
-  std::vector<float> B(K * N, 0.0f);
-  std::vector<float> C_cpu(M * N, 0.0f);
-  std::vector<float> C_ocl(M * N, 0.0f);
-
-  set_random_values(A, -1.0f, 1.0f);
-  set_random_values(B, -1.0f, 1.0f);
-
-  gemm_ref(A.data(), B.data(), C_cpu.data(), M, N, K, 1.0, 0.1f);
-  gemm_v8(A.data(), B.data(), C_ocl.data(), M, N, K, 1.0, 0.1f);
-
-  constexpr float kEpsilon = 1e-3f;
-  for (int i = 0; i < M * N; ++i) {
-    ASSERT_NEAR(C_ocl[i], C_cpu[i], kEpsilon);
-  }
-}
-
-TEST(GEMM, gemm_v9) {
-  constexpr int M = 4096;
-  constexpr int N = 1024; 
-  constexpr int K = 2048;
-
-  std::vector<float> A(M * K, 0.0f);
-  std::vector<float> B(K * N, 0.0f);
-  std::vector<float> C_cpu(M * N, 0.0f);
-  std::vector<float> C_ocl(M * N, 0.0f);
-
-  set_random_values(A, -1.0f, 1.0f);
-  set_random_values(B, -1.0f, 1.0f);
-
-  gemm_ref(A.data(), B.data(), C_cpu.data(), M, N, K, 1.0, 0.1f);
-  gemm_v9(A.data(), B.data(), C_ocl.data(), M, N, K, 1.0, 0.1f);
-
-  constexpr float kEpsilon = 1e-1f;
-  for (int i = 0; i < M * N; ++i) {
-    ASSERT_NEAR(C_ocl[i], C_cpu[i], kEpsilon);
-  }
-}
-
-TEST(GEMM, gemm_v10) {
-  constexpr int M = 4096;
-  constexpr int N = 1024; 
-  constexpr int K = 2048;
-
-  std::vector<float> A(M * K, 0.0f);
-  std::vector<float> B(K * N, 0.0f);
-  std::vector<float> C_cpu(M * N, 0.0f);
-  std::vector<float> C_ocl(M * N, 0.0f);
-
-  set_random_values(A, 1.0f, 1.0f);
-  set_random_values(B, 1.0f, 1.0f);
-
-  gemm_ref(A.data(), B.data(), C_cpu.data(), M, N, K, 1.0, 0.0f);
-  gemm_v10(A.data(), B.data(), C_ocl.data(), M, N, K, 1.0, 0.0f);
-
-  constexpr float kEpsilon = 1e-1f;
-  for (int i = 0; i < M * N; ++i) {
-    ASSERT_NEAR(C_ocl[i], C_cpu[i], kEpsilon);
-  }
-}
+INSTANTIATE_TEST_SUITE_P(
+    Variants, GEMMTest,
+    ::testing::Values(
+        GEMMVariant{"v0", gemm_v0, 1.0f, 0.0f},
+        GEMMVariant{"v1", gemm_v1, 1.0f, 0.0f},
+        GEMMVariant{"v2", gemm_v2, 1.0f, 0.0f},
+        GEMMVariant{"v3", gemm_v3, 1.0f, 0.0f},
+        GEMMVariant{"v4", gemm_v4, 1.0f, 0.0f},
+        GEMMVariant{"v5", gemm_v5, -1.0f, 0.1f},
+        GEMMVariant{"v6", gemm_v6, -1.0f, 0.1f},
+        GEMMVariant{"v7", gemm_v7, 1.0f, 0.1f},
+        GEMMVariant{"v8", gemm_v8, 1.0f, 0.1f},
+        GEMMVariant{"v9", gemm_v9, 1.0f, 0.1f},
+        GEMMVariant{"v10", gemm_v10, 1.0f, 0.0f}),
+    [](const auto& info) { return info.param.name; });

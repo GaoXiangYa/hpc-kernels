@@ -1,94 +1,78 @@
 #include "conv2d.h"
-#include <CL/cl.h>
-#include <CL/opencl.hpp>
-#include "utils.h"
+#include "device.h"
+#include <algorithm>
 
 void valid_conv2d_v0(const float* input, const float* filter, float* output,
                      int input_rows, int input_cols, int kernel_rows,
                      int kernel_cols) {
-  const std::string build_options = "";
-  OCLKernel ocl_kernel("../src/opencl/conv2d/valid_conv2d_v0.cl",
-                       "valid_conv2d_v0_kernel", build_options);
+  auto& dm = DeviceManager::get();
+  auto kernel = dm.build_kernel("../src/opencl/conv2d/valid_conv2d_v0.cl",
+                                "valid_conv2d_v0_kernel");
+
   const int kOutputRows = input_rows - kernel_rows + 1;
   const int kOutputCols = input_cols - kernel_cols + 1;
 
   cl::NDRange global_work_size(kOutputCols, kOutputRows);
   cl::NDRange local_work_size(16, 16);
 
-  cl::Buffer buffer_input(ocl_kernel.GetKernelContext(),
-                          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                          sizeof(float) * input_rows * input_cols,
-                          (void*) input);
-  cl::Buffer buffer_filter(ocl_kernel.GetKernelContext(),
-                           CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                           sizeof(float) * kernel_rows * kernel_cols,
-                           (void*) filter);
-  cl::Buffer buffer_output(ocl_kernel.GetKernelContext(),
-                           CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-                           sizeof(float) * kOutputRows * kOutputCols,
-                           (void*) output);
+  auto bi = dm.create_ro_buffer(sizeof(float) * input_rows * input_cols, input);
+  auto bf =
+      dm.create_ro_buffer(sizeof(float) * kernel_rows * kernel_cols, filter);
+  auto bo = dm.create_rw_buffer(sizeof(float) * kOutputRows * kOutputCols,
+                                output);
 
-  ocl_kernel.set_kernel_args(0, buffer_input, buffer_filter, buffer_output,
-                             input_rows, input_cols, kernel_rows, kernel_cols);
-  decltype(auto) queue = ocl_kernel.GetCommandQueue();
-  decltype(auto) kernel = ocl_kernel.GetKernel();
+  kernel.setArg(0, bi);
+  kernel.setArg(1, bf);
+  kernel.setArg(2, bo);
+  kernel.setArg(3, input_rows);
+  kernel.setArg(4, input_cols);
+  kernel.setArg(5, kernel_rows);
+  kernel.setArg(6, kernel_cols);
 
-  cl::Event event;
-  ocl_kernel.GetCommandQueue()->enqueueNDRangeKernel(kernel, cl::NullRange,
-                                                     global_work_size,
-                                                     cl::NullRange, nullptr,
-                                                     &event);
-  queue->enqueueReadBuffer(buffer_output, CL_TRUE, 0,
-                           sizeof(float) * kOutputRows * kOutputCols, output);
-  ocl_kernel.ProflingKernel(event);
+  dm.launch(kernel, global_work_size, cl::NullRange,
+            "valid_conv2d_v0_kernel");
+  dm.read_buffer(bo, sizeof(float) * kOutputRows * kOutputCols, output);
 }
 
 void valid_conv2d_v1(const float* input, const float* filter, float* output,
                      int input_rows, int input_cols, int kernel_rows,
                      int kernel_cols) {
-  const std::string build_options = "";
-  OCLKernel ocl_kernel("../src/opencl/conv2d/valid_conv2d_v1.cl",
-                       "valid_conv2d_v1_kernel", build_options);
+  auto& dm = DeviceManager::get();
+  auto kernel = dm.build_kernel("../src/opencl/conv2d/valid_conv2d_v1.cl",
+                                "valid_conv2d_v1_kernel");
+
   const int kOutputRows = input_rows - kernel_rows + 1;
   const int kOutputCols = input_cols - kernel_cols + 1;
 
   cl::NDRange global_work_size(kOutputCols, kOutputRows);
   cl::NDRange local_work_size(16, 16);
 
-  cl::Buffer buffer_input(ocl_kernel.GetKernelContext(),
-                          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                          sizeof(float) * input_rows * input_cols,
-                          (void*) input);
-  cl::Buffer buffer_filter(ocl_kernel.GetKernelContext(),
-                           CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                           sizeof(float) * kernel_rows * kernel_cols,
-                           (void*) filter);
-  cl::Buffer buffer_output(ocl_kernel.GetKernelContext(),
-                           CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-                           sizeof(float) * kOutputRows * kOutputCols,
-                           (void*) output);
+  auto bi = dm.create_ro_buffer(sizeof(float) * input_rows * input_cols, input);
+  auto bf =
+      dm.create_ro_buffer(sizeof(float) * kernel_rows * kernel_cols, filter);
+  auto bo = dm.create_rw_buffer(sizeof(float) * kOutputRows * kOutputCols,
+                                output);
 
-  ocl_kernel.set_kernel_args(0, buffer_input, buffer_filter, buffer_output,
-                             input_rows, input_cols, kernel_rows, kernel_cols);
-  decltype(auto) queue = ocl_kernel.GetCommandQueue();
-  decltype(auto) kernel = ocl_kernel.GetKernel();
+  kernel.setArg(0, bi);
+  kernel.setArg(1, bf);
+  kernel.setArg(2, bo);
+  kernel.setArg(3, input_rows);
+  kernel.setArg(4, input_cols);
+  kernel.setArg(5, kernel_rows);
+  kernel.setArg(6, kernel_cols);
 
-  cl::Event event;
-  ocl_kernel.GetCommandQueue()->enqueueNDRangeKernel(kernel, cl::NullRange,
-                                                     global_work_size,
-                                                     cl::NullRange, nullptr,
-                                                     &event);
-  queue->enqueueReadBuffer(buffer_output, CL_TRUE, 0,
-                           sizeof(float) * kOutputRows * kOutputCols, output);
-  ocl_kernel.ProflingKernel(event);
+  dm.launch(kernel, global_work_size, cl::NullRange,
+            "valid_conv2d_v1_kernel");
+  dm.read_buffer(bo, sizeof(float) * kOutputRows * kOutputCols, output);
 }
 
 void valid_conv2d_v2(const float* input, const float* filter, float* output,
                      int input_rows, int input_cols, int kernel_rows,
                      int kernel_cols) {
-  const std::string build_options = "";
-  OCLKernel ocl_kernel("../src/opencl/conv2d/valid_conv2d_v2.cl",
-                       "valid_conv2d_v2_kernel", build_options);
+  auto& dm = DeviceManager::get();
+  auto kernel = dm.build_kernel("../src/opencl/conv2d/valid_conv2d_v2.cl",
+                                "valid_conv2d_v2_kernel");
+
   const int kOutputRows = input_rows - kernel_rows + 1;
   const int kOutputCols = input_cols - kernel_cols + 1;
 
@@ -98,54 +82,41 @@ void valid_conv2d_v2(const float* input, const float* filter, float* output,
   const int kSharedInputSizeX = kLocalSizeX + kernel_cols - 1;
   const int kSharedInputSizeY = kLocalSizeY + kernel_rows - 1;
 
-  cl::NDRange global_work_size((kOutputCols + kLocalSizeX - 1) / kLocalSizeX *
-                                   kLocalSizeX,
-                               (kOutputRows + kLocalSizeY - 1) / kLocalSizeY *
-                                   kLocalSizeY);
+  cl::NDRange global_work_size(
+      (kOutputCols + kLocalSizeX - 1) / kLocalSizeX * kLocalSizeX,
+      (kOutputRows + kLocalSizeY - 1) / kLocalSizeY * kLocalSizeY);
   cl::NDRange local_work_size(kLocalSizeX, kLocalSizeY);
 
-  cl::Buffer buffer_input(ocl_kernel.GetKernelContext(),
-                          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                          sizeof(float) * input_rows * input_cols,
-                          (void*) input);
-  cl::Buffer buffer_filter(ocl_kernel.GetKernelContext(),
-                           CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                           sizeof(float) * kernel_rows * kernel_cols,
-                           (void*) filter);
-  cl::Buffer buffer_output(ocl_kernel.GetKernelContext(),
-                           CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-                           sizeof(float) * kOutputRows * kOutputCols,
-                           (void*) output);
-  ocl_kernel.GetKernel().setArg(0, buffer_input);
-  ocl_kernel.GetKernel().setArg(1, buffer_filter);
-  ocl_kernel.GetKernel().setArg(2, buffer_output);
-  ocl_kernel.GetKernel().setArg(
-      3, sizeof(float) * (kSharedInputSizeX + 1) * kSharedInputSizeY, nullptr);
-  ocl_kernel.GetKernel().setArg(4, input_rows);
-  ocl_kernel.GetKernel().setArg(5, input_cols);
-  ocl_kernel.GetKernel().setArg(6, kernel_rows);
-  ocl_kernel.GetKernel().setArg(7, kernel_cols);
-  ocl_kernel.GetKernel().setArg(8, kOutputRows);
-  ocl_kernel.GetKernel().setArg(9, kOutputCols);
-  decltype(auto) queue = ocl_kernel.GetCommandQueue();
-  decltype(auto) kernel = ocl_kernel.GetKernel();
+  auto bi = dm.create_ro_buffer(sizeof(float) * input_rows * input_cols, input);
+  auto bf =
+      dm.create_ro_buffer(sizeof(float) * kernel_rows * kernel_cols, filter);
+  auto bo = dm.create_rw_buffer(sizeof(float) * kOutputRows * kOutputCols,
+                                output);
 
-  cl::Event event;
-  ocl_kernel.GetCommandQueue()->enqueueNDRangeKernel(kernel, cl::NullRange,
-                                                     global_work_size,
-                                                     local_work_size, nullptr,
-                                                     &event);
-  queue->enqueueReadBuffer(buffer_output, CL_TRUE, 0,
-                           sizeof(float) * kOutputRows * kOutputCols, output);
-  ocl_kernel.ProflingKernel(event);
+  kernel.setArg(0, bi);
+  kernel.setArg(1, bf);
+  kernel.setArg(2, bo);
+  kernel.setArg(
+      3, cl::Local(sizeof(float) * (kSharedInputSizeX + 1) * kSharedInputSizeY));
+  kernel.setArg(4, input_rows);
+  kernel.setArg(5, input_cols);
+  kernel.setArg(6, kernel_rows);
+  kernel.setArg(7, kernel_cols);
+  kernel.setArg(8, kOutputRows);
+  kernel.setArg(9, kOutputCols);
+
+  dm.launch(kernel, global_work_size, local_work_size,
+            "valid_conv2d_v2_kernel");
+  dm.read_buffer(bo, sizeof(float) * kOutputRows * kOutputCols, output);
 }
 
 void valid_conv2d_v3(const float* input, const float* filter, float* output,
                      int input_rows, int input_cols, int kernel_rows,
                      int kernel_cols) {
-  const std::string build_options = "";
-  OCLKernel ocl_kernel("../src/opencl/conv2d/valid_conv2d_v3.cl",
-                       "valid_conv2d_v3_kernel", build_options);
+  auto& dm = DeviceManager::get();
+  auto kernel = dm.build_kernel("../src/opencl/conv2d/valid_conv2d_v3.cl",
+                                "valid_conv2d_v3_kernel");
+
   const int kOutputRows = input_rows - kernel_rows + 1;
   const int kOutputCols = input_cols - kernel_cols + 1;
   const int kRegX = 2;
@@ -157,46 +128,37 @@ void valid_conv2d_v3(const float* input, const float* filter, float* output,
   const int kGlobalSizeY = (kOutputRows + (kLocalSizeY * kRegY) - 1) /
                            (kLocalSizeY * kRegY) * kLocalSizeY;
 
-  // std::cout << std::format("global [{}, {}], local [{}, {}]\n", kGlobalSizeY,
-  //                          kGlobalSizeX, kLocalSizeY, kLocalSizeX);
   cl::NDRange global_work_size(kGlobalSizeX, kGlobalSizeY);
   cl::NDRange local_work_size(kLocalSizeX, kLocalSizeY);
 
-  cl::Buffer buffer_input(ocl_kernel.GetKernelContext(),
-                          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                          sizeof(float) * input_rows * input_cols,
-                          (void*) input);
-  cl::Buffer buffer_filter(ocl_kernel.GetKernelContext(),
-                           CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                           sizeof(float) * kernel_rows * kernel_cols,
-                           (void*) filter);
-  cl::Buffer buffer_output(ocl_kernel.GetKernelContext(),
-                           CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-                           sizeof(float) * kOutputRows * kOutputCols,
-                           (void*) output);
+  auto bi = dm.create_ro_buffer(sizeof(float) * input_rows * input_cols, input);
+  auto bf =
+      dm.create_ro_buffer(sizeof(float) * kernel_rows * kernel_cols, filter);
+  auto bo = dm.create_rw_buffer(sizeof(float) * kOutputRows * kOutputCols,
+                                output);
 
-  ocl_kernel.set_kernel_args(0, buffer_input, buffer_filter, buffer_output,
-                             input_rows, input_cols, kernel_rows, kernel_cols,
-                             kOutputRows, kOutputCols);
-  decltype(auto) queue = ocl_kernel.GetCommandQueue();
-  decltype(auto) kernel = ocl_kernel.GetKernel();
+  kernel.setArg(0, bi);
+  kernel.setArg(1, bf);
+  kernel.setArg(2, bo);
+  kernel.setArg(3, input_rows);
+  kernel.setArg(4, input_cols);
+  kernel.setArg(5, kernel_rows);
+  kernel.setArg(6, kernel_cols);
+  kernel.setArg(7, kOutputRows);
+  kernel.setArg(8, kOutputCols);
 
-  cl::Event event;
-  ocl_kernel.GetCommandQueue()->enqueueNDRangeKernel(kernel, cl::NullRange,
-                                                     global_work_size,
-                                                     local_work_size, nullptr,
-                                                     &event);
-  queue->enqueueReadBuffer(buffer_output, CL_TRUE, 0,
-                           sizeof(float) * kOutputRows * kOutputCols, output);
-  ocl_kernel.ProflingKernel(event);
+  dm.launch(kernel, global_work_size, local_work_size,
+            "valid_conv2d_v3_kernel");
+  dm.read_buffer(bo, sizeof(float) * kOutputRows * kOutputCols, output);
 }
 
 void valid_conv2d_v4(const float* input, const float* filter, float* output,
                      int input_rows, int input_cols, int kernel_rows,
                      int kernel_cols) {
-  const std::string build_options = "";
-  OCLKernel ocl_kernel("../src/opencl/conv2d/valid_conv2d_v4.cl",
-                       "valid_conv2d_v4_kernel", build_options);
+  auto& dm = DeviceManager::get();
+  auto kernel = dm.build_kernel("../src/opencl/conv2d/valid_conv2d_v4.cl",
+                                "valid_conv2d_v4_kernel");
+
   const int kOutputRows = input_rows - kernel_rows + 1;
   const int kOutputCols = input_cols - kernel_cols + 1;
   const int kRegX = 2;
@@ -213,40 +175,25 @@ void valid_conv2d_v4(const float* input, const float* filter, float* output,
   cl::NDRange global_work_size(kGlobalSizeX, kGlobalSizeY);
   cl::NDRange local_work_size(kLocalSizeX, kLocalSizeY);
 
-  cl::Buffer buffer_input(ocl_kernel.GetKernelContext(),
-                          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                          sizeof(float) * input_rows * input_cols,
-                          (void*) input);
-  cl::Buffer buffer_filter(ocl_kernel.GetKernelContext(),
-                           CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                           sizeof(float) * kernel_rows * kernel_cols,
-                           (void*) filter);
-  cl::Buffer buffer_output(ocl_kernel.GetKernelContext(),
-                           CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-                           sizeof(float) * kOutputRows * kOutputCols,
-                           (void*) output);
-  ocl_kernel.GetKernel().setArg(0, buffer_input);
-  ocl_kernel.GetKernel().setArg(1, buffer_filter);
-  ocl_kernel.GetKernel().setArg(2, buffer_output);
-  ocl_kernel.GetKernel().setArg(3,
-                                sizeof(float) * kRegX * kRegY * kSharedInputX *
-                                    kSharedInputY,
-                                nullptr);
-  ocl_kernel.GetKernel().setArg(4, input_rows);
-  ocl_kernel.GetKernel().setArg(5, input_cols);
-  ocl_kernel.GetKernel().setArg(6, kernel_rows);
-  ocl_kernel.GetKernel().setArg(7, kernel_cols);
-  ocl_kernel.GetKernel().setArg(8, kOutputRows);
-  ocl_kernel.GetKernel().setArg(9, kOutputCols);
-  decltype(auto) queue = ocl_kernel.GetCommandQueue();
-  decltype(auto) kernel = ocl_kernel.GetKernel();
+  auto bi = dm.create_ro_buffer(sizeof(float) * input_rows * input_cols, input);
+  auto bf =
+      dm.create_ro_buffer(sizeof(float) * kernel_rows * kernel_cols, filter);
+  auto bo = dm.create_rw_buffer(sizeof(float) * kOutputRows * kOutputCols,
+                                output);
 
-  cl::Event event;
-  ocl_kernel.GetCommandQueue()->enqueueNDRangeKernel(kernel, cl::NullRange,
-                                                     global_work_size,
-                                                     local_work_size, nullptr,
-                                                     &event);
-  queue->enqueueReadBuffer(buffer_output, CL_TRUE, 0,
-                           sizeof(float) * kOutputRows * kOutputCols, output);
-  ocl_kernel.ProflingKernel(event);
+  kernel.setArg(0, bi);
+  kernel.setArg(1, bf);
+  kernel.setArg(2, bo);
+  kernel.setArg(3, cl::Local(sizeof(float) * kRegX * kRegY * kSharedInputX *
+                             kSharedInputY));
+  kernel.setArg(4, input_rows);
+  kernel.setArg(5, input_cols);
+  kernel.setArg(6, kernel_rows);
+  kernel.setArg(7, kernel_cols);
+  kernel.setArg(8, kOutputRows);
+  kernel.setArg(9, kOutputCols);
+
+  dm.launch(kernel, global_work_size, local_work_size,
+            "valid_conv2d_v4_kernel");
+  dm.read_buffer(bo, sizeof(float) * kOutputRows * kOutputCols, output);
 }
