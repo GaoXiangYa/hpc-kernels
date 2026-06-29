@@ -10,7 +10,7 @@ add_library(rmsnorm_cuda
 target_include_directories(rmsnorm_cuda PUBLIC ${CUDA_INCLUDE_DIRS})
 
 add_executable(rmsnorm_test ${CMAKE_CURRENT_SOURCE_DIR}/rmsnorm_test.cpp)
-target_link_libraries(rmsnorm_test PRIVATE cusparse cublas rmsnorm_cuda GTest::gtest_main)
+target_link_libraries(rmsnorm_test PRIVATE rmsnorm_cuda GTest::gtest_main)
 
 add_executable(rmsnorm_benchmark ${CMAKE_CURRENT_SOURCE_DIR}/rmsnorm_benchmark.cpp)
-target_link_libraries(rmsnorm_benchmark PRIVATE cusparse cublas rmsnorm_cuda GTest::gtest_main)
+target_link_libraries(rmsnorm_benchmark PRIVATE rmsnorm_cuda GTest::gtest_main)

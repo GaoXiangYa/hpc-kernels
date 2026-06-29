@@ -1,5 +1,5 @@
 #include "reduce.h"
-#include "../utils/utils.h"
+#include "utils.h"
 #include <CL/cl.h>
 #include <CL/cl2.hpp>
 #include <CL/opencl.hpp>
@@ -150,8 +150,7 @@ void reduce_v3(const float *input, float *output, int n) {
 
   cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
 
-  const std::string kernel_src = read_file(
-      "/home/felix/PROJECTS/HPC/KernelPractice/src/opencl/reduce/reduce_v3.cl");
+  const std::string kernel_src = read_file("../src/opencl/reduce/reduce_v3.cl");
   cl::Program program(context, kernel_src);
   program.build({device}, build_options.c_str());
   cl::Kernel kernel(program, "reduce_v3_kernel");

@@ -1,10 +1,10 @@
-#include "matmul.cuh"
+#include "gemm.cuh"
 #include <cstdio>
 #include <cuda_runtime.h>
 
 // a[m, n] * b[n, k] = c[m, k]
-__global__ void matmul_native_kernel(const float *a, const float *b, float *c,
-                                     int m, int n, int k) {
+__global__ void gemm_v0_kernel(const float *a, const float *b, float *c,
+                                int m, int n, int k) {
   const int col = blockIdx.x * blockDim.x + threadIdx.x;
   const int row = blockIdx.y * blockDim.y + threadIdx.y;
   if (row < m && col < k) {
@@ -19,7 +19,7 @@ __global__ void matmul_native_kernel(const float *a, const float *b, float *c,
 // 使用shared memory进行优化
 // a[m, n] * b[n, k] = c[m, k]
 template <int BLOCK>
-__global__ void matmul_sharedmemory_kernel(const float *__restrict__ matrix_a,
+__global__ void gemm_v1_kernel(const float *__restrict__ matrix_a,
                                            const float *__restrict__ matrix_b,
                                            float *__restrict__ matrix_c, int m,
                                            int n, int k) {
@@ -69,7 +69,7 @@ __global__ void matmul_sharedmemory_kernel(const float *__restrict__ matrix_a,
 }
 
 template <int BLOCK_SIZE, int COARSE_FACTOR>
-__global__ void matmul_sharedmemory_threadcoarsening_kernel(
+__global__ void gemm_v2_kernel(
     const float *__restrict__ matrix_a, const float *__restrict__ matrix_b,
     float *__restrict__ matrix_c, int m, int n, int k) {
   extern __shared__ float shared_mem[];
@@ -145,7 +145,7 @@ __global__ void matmul_sharedmemory_threadcoarsening_kernel(
 template <const int BLOCK_SIZE_M, const int BLOCK_SIZE_K,
           const int BLOCK_SIZE_N, const int THREAD_SIZE_Y,
           const int THREAD_SIZE_X, const bool ENABLE_DOUBLE_BUFFER>
-__global__ void matmul_shared_memory_threadsoarsening_prefetch_kernel(
+__global__ void gemm_v3_kernel(
     const float *A, const float *B, float *C, const int M, const int N,
     const int K) {
   // block idx
@@ -336,7 +336,7 @@ __global__ void matmul_shared_memory_threadsoarsening_prefetch_kernel(
   }
 }
 
-void matmul_native(const float *a, const float *b, float *c, int m, int n,
+void gemm_v0(const float *a, const float *b, float *c, int m, int n,
                    int k) {
   float *dev_a = nullptr;
   auto err = cudaMalloc(&dev_a, m * n * sizeof(float));
@@ -354,7 +354,7 @@ void matmul_native(const float *a, const float *b, float *c, int m, int n,
   dim3 block(THREAD_COUNT, THREAD_COUNT);
   dim3 grid((k + block.x - 1) / block.x, (m + block.y - 1) / block.y);
 
-  matmul_native_kernel<<<grid, block>>>(dev_a, dev_b, dev_c, m, n, k);
+  gemm_v0_kernel<<<grid, block>>>(dev_a, dev_b, dev_c, m, n, k);
 
   cudaMemcpy(c, dev_c, m * k * sizeof(float), cudaMemcpyDeviceToHost);
 
@@ -363,7 +363,7 @@ void matmul_native(const float *a, const float *b, float *c, int m, int n,
   cudaFree(dev_c);
 }
 
-void matmul_sharedmemory(const float *matrix_a, const float *matrix_b,
+void gemm_v1(const float *matrix_a, const float *matrix_b,
                          float *matrix_c, int m, int n, int k) {
   float *dev_a = nullptr;
   auto err = cudaMalloc(&dev_a, m * n * sizeof(float));
@@ -388,13 +388,13 @@ void matmul_sharedmemory(const float *matrix_a, const float *matrix_b,
   auto shared_mem_size = 2 * BLOCK_SIZE * BLOCK_SIZE * sizeof(float);
 
   if (BLOCK_SIZE == 16) {
-    matmul_sharedmemory_kernel<16>
+    gemm_v1_kernel<16>
         <<<grid, block, shared_mem_size>>>(dev_a, dev_b, dev_c, m, n, k);
   } else if (BLOCK_SIZE == 32) {
-    matmul_sharedmemory_kernel<32>
+    gemm_v1_kernel<32>
         <<<grid, block, shared_mem_size>>>(dev_a, dev_b, dev_c, m, n, k);
   } else {
-    matmul_sharedmemory_kernel<8>
+    gemm_v1_kernel<8>
         <<<grid, block, shared_mem_size>>>(dev_a, dev_b, dev_c, m, n, k);
   }
 
@@ -405,7 +405,7 @@ void matmul_sharedmemory(const float *matrix_a, const float *matrix_b,
   cudaFree(dev_c);
 }
 
-void matmul_sharedmemory_threadcoarsening(const float *matrix_a,
+void gemm_v2(const float *matrix_a,
                                           const float *matrix_b,
                                           float *matrix_c, int m, int n,
                                           int k) {
@@ -435,7 +435,7 @@ void matmul_sharedmemory_threadcoarsening(const float *matrix_a,
       (BLOCK_SIZE * BLOCK_SIZE + BLOCK_SIZE * BLOCK_SIZE * COARSE_FACTOR) *
       sizeof(float);
 
-  matmul_sharedmemory_threadcoarsening_kernel<BLOCK_SIZE, COARSE_FACTOR>
+  gemm_v2_kernel<BLOCK_SIZE, COARSE_FACTOR>
       <<<grid, block, shared_mem_size>>>(dev_a, dev_b, dev_c, m, n, k);
 
   cudaMemcpy(matrix_c, dev_c, m * k * sizeof(float), cudaMemcpyDeviceToHost);
