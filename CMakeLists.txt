@@ -12,7 +12,11 @@ find_package(GTest REQUIRED)
 option(USE_CPU "use cpu backend" OFF)
 option(USE_CUDA "use cuda backend" OFF)
 option(USE_OPENCL "use opencl backend" OFF)
+option(USE_TORCH "use libtorch for testing" ON)
 
+if(USE_TORCH)
+  find_package(Torch REQUIRED PATHS /opt/libtorch)
+endif()
 
 if(USE_CPU)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfma -mavx -mavx2 -O3")

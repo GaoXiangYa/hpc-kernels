@@ -1,68 +1,55 @@
 #include "gemm.cuh"
-#include "test_util.h"
 #include <gtest/gtest.h>
+#include <torch/torch.h>
 #include <vector>
 
-TEST(GemmTest, gemm_v0) {
-  const int m = 1024, n = 256, k = 128;
-  std::vector<float> host_a(m * n);
-  std::vector<float> host_b(n * k);
-  std::vector<float> host_cpu_c(m * k, 0.0f);
-  std::vector<float> host_gpu_c(m * k, 0.0f);
+void ref_gemm_torch(const std::vector<float>& a, const std::vector<float>& b,
+                    std::vector<float>& c, int M, int N, int K) {
+  auto opts = torch::TensorOptions().dtype(torch::kFloat32);
+  auto ta = torch::from_blob((void*)a.data(), {M, K}, opts);
+  auto tb = torch::from_blob((void*)b.data(), {K, N}, opts);
 
-  init_random_matrix(host_a, -1.0f, 1.0f);
-  init_random_matrix(host_b, -1.0f, 1.0f);
+  auto tc = torch::matmul(ta, tb);
 
-  ref_matmul(host_a, host_b, host_cpu_c, m, n, k);
-  gemm_v0(host_a.data(), host_b.data(), host_gpu_c.data(), m, n, k);
-
-  compare_matrix(host_cpu_c, host_gpu_c);
+  std::memcpy(c.data(), tc.data_ptr<float>(), M * N * sizeof(float));
 }
 
-TEST(GemmTest, gemm_v1) {
-  const int m = 1024, n = 256, k = 128;
-  // const int m = 4, n = 4, k = 4;
-  std::vector<float> host_a(m * n);
-  std::vector<float> host_b(n * k);
-  std::vector<float> host_cpu_c(m * k, 0.0f);
-  std::vector<float> host_gpu_c(m * k, 0.0f);
+void test_gemm_v0(int M, int N, int K) {
+  std::vector<float> a(M * K);
+  std::vector<float> b(K * N);
+  std::vector<float> c_ref(M * N, 0.0f);
+  std::vector<float> c_cuda(M * N, 0.0f);
 
-  init_random_matrix(host_a, 1.0f, 1.0f);
-  init_random_matrix(host_b, 1.0f, 1.0f);
+  for (auto& v : a) v = float(rand()) / RAND_MAX * 2.0f - 1.0f;
+  for (auto& v : b) v = float(rand()) / RAND_MAX * 2.0f - 1.0f;
 
-  ref_matmul(host_a, host_b, host_cpu_c, m, n, k);
-  gemm_v1(host_a.data(), host_b.data(), host_gpu_c.data(), m, n, k); 
+  ref_gemm_torch(a, b, c_ref, M, N, K);
+  gemm_v0(a.data(), b.data(), c_cuda.data(), M, N, K);
 
-  // print_matmul(host_a.data(), m, n);
-  // printf("======================\n");
-  // print_matmul(host_b.data(), n, k);
-  // print_matmul(host_gpu_c.data(), m, k);
-  compare_matrix(host_cpu_c, host_gpu_c);
+  constexpr float kEpsilon = 1e-3f;
+  for (int i = 0; i < M * N; ++i) {
+    ASSERT_NEAR(c_ref[i], c_cuda[i], kEpsilon)
+        << "Mismatch at index " << i;
+  }
 }
 
-TEST(GemmTest, gemm_v2) {
-  const int m = 1024, n = 256, k = 128;
-  // const int m = 4, n = 4, k = 4;
-  std::vector<float> host_a(m * n);
-  std::vector<float> host_b(n * k);
-  std::vector<float> host_cpu_c(m * k, 0.0f);
-  std::vector<float> host_gpu_c(m * k, 0.0f);
-
-  init_random_matrix(host_a, 1.0f, 1.0f);
-  init_random_matrix(host_b, 1.0f, 1.0f);
-
-  ref_matmul(host_a, host_b, host_cpu_c, m, n, k);
-  gemm_v2(host_a.data(), host_b.data(), host_gpu_c.data(), m, n, k); 
-
-  // print_matmul(host_a.data(), m, n);
-  // printf("======================\n");
-  // print_matmul(host_b.data(), n, k);
-  // print_matmul(host_gpu_c.data(), m, k);
-  compare_matrix(host_cpu_c, host_gpu_c);
+TEST(GemmTest, v0_small) {
+  test_gemm_v0(64, 64, 64);
 }
 
-int main(int argc, char **argv) {
+TEST(GemmTest, v0_medium) {
+  test_gemm_v0(256, 256, 256);
+}
+
+TEST(GemmTest, v0_large) {
+  test_gemm_v0(1024, 256, 128);
+}
+
+TEST(GemmTest, v0_skinny) {
+  test_gemm_v0(1024, 16, 256);
+}
+
+int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
-  return 0;
 }

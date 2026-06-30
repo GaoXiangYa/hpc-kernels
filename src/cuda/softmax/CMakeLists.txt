@@ -7,5 +7,3 @@ target_include_directories(softmax_cuda PUBLIC ${CUDA_INCLUDE_DIRS})
 add_executable(softmax_test ${CMAKE_CURRENT_SOURCE_DIR}/test.cpp)
 target_link_libraries(softmax_test PRIVATE softmax_cuda GTest::gtest_main)
 
-add_executable(softmax_benchmark ${CMAKE_CURRENT_SOURCE_DIR}/benchmark.cpp)
-target_link_libraries(softmax_benchmark PRIVATE softmax_cuda)
