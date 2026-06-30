@@ -9,7 +9,8 @@ function(add_ocl_kernel NAME)
     add_executable(${NAME}_test test.cpp)
     target_link_libraries(${NAME}_test PRIVATE ${NAME}_ocl ocl_common
                                               OpenCL::OpenCL
-                                              GTest::GTest GTest::Main)
+                                              GTest::GTest GTest::Main
+                                              ${ARGN})
 endfunction()
 
 add_subdirectory(common)

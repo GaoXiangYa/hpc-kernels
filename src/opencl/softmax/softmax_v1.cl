@@ -1,7 +1,7 @@
 #define MIN(a, b) a < b ? a : b
 #define MAX(a, b) a < b ? b : a
 
-__kernel void softmaxKernelV0(
+__kernel void softmaxKernelV1(
     __global float* restrict output,       // Softmax output (attention weights)
     const __global float* restrict input,  // Attention scores: QK^T, scaled
                                            // or unscaled (determined by
@@ -25,8 +25,6 @@ __kernel void softmaxKernelV0(
   int local_size = get_local_size(0);
   int local_size_half = local_size >> 1;
 
-  __local float sdata[1024];
-
   __global float* pinput = (input + group0 * seq_k + group1 * seq_q * seq_k +
                             group2 * seq_k * seq_q * num_heads);
 
@@ -44,17 +42,7 @@ __kernel void softmaxKernelV0(
     }
     fmax = MAX(fmax, val);
   }
-  sdata[lid] = fmax;
-  barrier(CLK_LOCAL_MEM_FENCE);
-
-  for (int offset = local_size_half; offset >= 1; offset >>= 1) {
-    if (lid < offset) {
-      sdata[lid] = MAX(sdata[lid], sdata[lid + offset]);
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
-  }
-
-  float max_v = sdata[0];
+  float max_v = sub_group_reduce_max(fmax);
 
   float sum = 0.0f;
   float exp_v = 0.0f;
@@ -71,23 +59,14 @@ __kernel void softmaxKernelV0(
     poutput[i] = exp_v;
     sum += exp_v;
   }
-  sdata[lid] = sum;
-  barrier(CLK_LOCAL_MEM_FENCE);
+  float sum_v = sub_group_reduce_add(sum);
 
-  for (int offset = local_size_half; offset >= 1; offset >>= 1) {
-    if (lid < offset) {
-      sdata[lid] += sdata[lid + offset];
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
-  }
+  // if (lid == 0) {
+  //   sum_v = 1.0f / sum_v;
+  // }
+  // barrier(CLK_LOCAL_MEM_FENCE);
 
-  if (lid == 0) {
-    sdata[0] = 1.0f / sdata[0];
-  }
-  barrier(CLK_LOCAL_MEM_FENCE);
-
-  float sum_v = sdata[0];
   for (int i = lid; i < seq_k; i += local_size) {
-    poutput[i] *= sum_v;
+    poutput[i] /= sum_v;
   }
 }
