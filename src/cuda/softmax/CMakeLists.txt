@@ -1,6 +1,7 @@
 add_library(softmax_cuda STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/softmax_v0.cu
   ${CMAKE_CURRENT_SOURCE_DIR}/softmax_v1.cu
+  ${CMAKE_CURRENT_SOURCE_DIR}/softmax_v2.cu
 )
 target_include_directories(softmax_cuda PUBLIC ${CUDA_INCLUDE_DIRS})
 

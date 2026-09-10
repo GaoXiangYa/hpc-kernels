@@ -27,6 +27,10 @@ if(USE_CUDA)
   enable_language(CUDA)
   find_package(CUDAToolkit REQUIRED)
 
+  # clangd 不认 nvcc 的 --options-file；关闭 include 响应文件后，
+  # compile_commands.json 中会直接出现 -I/ -isystem，索引才能看到这些头文件。
+  set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES OFF)
+
   set(CMAKE_CUDA_STANDARD 20)
   set(CMAKE_CUDA_SEPARABLE_COMPILATION OFF)
   set(CMAKE_CUDA_ARCHITECTURES 86)
