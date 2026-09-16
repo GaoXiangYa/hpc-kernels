@@ -1,5 +1,5 @@
 #pragma once
-
+#include <cuda_bf16.h>
 // ============================================================================
 // HGEMM thread organization:
 //
@@ -58,7 +58,7 @@ struct GemmConfig {
   // kSmemPad is a bank-conflict tuning knob, not part of the logical tile.
   // --------------------------------------------------------------------------
   static constexpr int kSmemPad = 4;
-  static constexpr int kSmemStrideA = kBlockM + kSmemPad;
+  static constexpr int kSmemStrideA = kBlockK + kSmemPad;
   static constexpr int kSmemStrideB = kBlockN + kSmemPad;
 
   // --------------------------------------------------------------------------
@@ -170,6 +170,84 @@ struct ThreadCoord {
   }
 };
 
+template <class Config>
+struct ACopyCoord {
+  const __nv_bfloat16* gmem;
+  __nv_bfloat16* smem;
+
+  int gmem_step;
+  int smem_step;
+
+  static constexpr int kLanesPerRow = Config::kBlockK;
+  static constexpr int kRowsPerWarpIter = Config::kWarpSize / kLanesPerRow;
+  static constexpr int kRowsPerWarp = Config::kBlockM / Config::kWarps;
+  static constexpr int kIters =
+      (kRowsPerWarp + kRowsPerWarpIter - 1) / kRowsPerWarpIter;
+
+  __device__ __forceinline__ ACopyCoord(const BlockCoord<Config>& block,
+                                        const WarpCoord<Config>& warp,
+                                        const __nv_bfloat16* A,
+                                        __nv_bfloat16* As, int lda, int k0) {
+    const int lane_id = warp.lane_id;
+
+    const int lane_row = lane_id / kLanesPerRow;
+    const int lane_col = lane_id % kLanesPerRow;
+
+    const int row0 = warp.warp_id * kRowsPerWarp + lane_row;
+    const int col0 = lane_col;
+
+    gmem = A + (block.tile_m + row0) * lda + k0 + col0;
+    smem = As + row0 * Config::kSmemStrideA + col0;
+
+    gmem_step = kRowsPerWarpIter * lda;
+    smem_step = kRowsPerWarpIter * Config::kSmemStrideA;
+  }
+
+  __device__ __forceinline__ void next() {
+    gmem += gmem_step;
+    smem += smem_step;
+  }
+};
+
+template <class Config>
+struct BCopyCoord {
+  const __nv_bfloat16* gmem;
+  __nv_bfloat16* smem;
+
+  int gmem_step;
+  int smem_step;
+
+  static constexpr int kLanesPerRow = Config::kBlockN;
+  static constexpr int kRowsPerWarpIter = Config::kWarpSize / kLanesPerRow;
+  static constexpr int kRowsPerWarp = Config::kBlockK / Config::kWarps;
+  static constexpr int kIters =
+      (kRowsPerWarp + kRowsPerWarpIter - 1) / kRowsPerWarpIter;
+
+  __device__ __forceinline__ BCopyCoord(const BlockCoord<Config>& block,
+                                        const WarpCoord<Config>& warp,
+                                        const __nv_bfloat16* B,
+                                        __nv_bfloat16* Bs, int ldb, int k0) {
+    const int lane_id = warp.lane_id;
+
+    const int lane_row = lane_id / kLanesPerRow;
+    const int lane_col = lane_id % kLanesPerRow;
+
+    const int row0 = warp.warp_id * kRowsPerWarp + lane_row;
+    const int col0 = lane_col;
+
+    gmem = B + (k0 + row0) * ldb + block.tile_n + col0;
+    smem = Bs + row0 * Config::kSmemStrideB + col0;
+
+    gmem_step = kRowsPerWarpIter * ldb;
+    smem_step = kRowsPerWarpIter * Config::kSmemStrideB;
+  }
+
+  __device__ __forceinline__ void next() {
+    gmem += gmem_step;
+    smem += smem_step;
+  }
+};
+
 // ============================================================================
 // Per-thread register tile.
 //
@@ -199,3 +277,5 @@ struct RegisterTile {
     }
   }
 };
+
+using HgemmV0Config = GemmConfig<32, 16, 16, 32, 16, 4, 4>;
