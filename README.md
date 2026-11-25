@@ -28,6 +28,7 @@ hpc-kernels/
     │   └── softmax/        # Softmax with attention mask (v0)
     └── cpu/
         ├── common/         # CPU utilities (initMatrix, printMatrix)
+        ├── flash_attn/     # FlashAttention framework (fp32, versions pending)
         └── gemm/           # Matrix multiplication (v0-v20, openmp, blas)
 ```
 
@@ -63,3 +64,4 @@ export CUTLASS_PATH=/path/to/cutlass
 ## CPU
 
 - [x] gemm (v0-v20, openmp, blas)
+- [ ] flash_attn (framework; versions pending)
