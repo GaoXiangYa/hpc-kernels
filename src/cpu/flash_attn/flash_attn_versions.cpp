@@ -11,10 +11,10 @@
 // test.cpp and benchmark.cpp both read the registry, so they never need to be
 // touched.  Unregistered versions are neither tested nor benchmarked.
 // ===========================================================================
-// void flash_attn_v0(const FlashAttentionParams&);
+void flash_attn_v0(const FlashAttentionParams&);
 
 std::vector<FlashAttnVersion> flash_attn_versions() {
   return {
-      // {"v0", flash_attn_v0},
+      {"v0", flash_attn_v0},
   };
 }

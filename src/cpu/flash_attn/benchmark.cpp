@@ -89,24 +89,70 @@ std::vector<float> random_vec(std::size_t n, std::uint32_t seed) {
   return values;
 }
 
-bool enabled(const char* name, int argc, char** argv) {
-  if (argc <= 1)
+bool version_enabled(const char* name,
+                     const std::vector<std::string>& version_filter) {
+  if (version_filter.empty())
     return true;  // no filter -> run everything
-  for (int i = 1; i < argc; ++i) {
-    if (std::strcmp(argv[i], name) == 0)
+  return std::find(version_filter.begin(), version_filter.end(), name) !=
+         version_filter.end();
+}
+
+bool shape_selected(const char* tag, const std::string& shape_filter) {
+  if (shape_filter.empty())
+    return true;
+  std::size_t pos = 0;
+  while (pos < shape_filter.size()) {
+    const std::size_t comma = shape_filter.find(',', pos);
+    const std::string token =
+        shape_filter.substr(pos, comma == std::string::npos ? std::string::npos
+                                                            : comma - pos);
+    if (token == tag)
       return true;
+    if (comma == std::string::npos)
+      break;
+    pos = comma + 1;
   }
   return false;
+}
+
+void print_usage() {
+  std::printf(
+      "usage: flash_attn_benchmark [vN ...] [--shape=tag1,tag2] "
+      "[--list-shapes]\n");
+  std::printf("shapes:");
+  for (const auto& shape : kShapes)
+    std::printf(" %s", shape.tag);
+  std::printf("\n");
 }
 
 }  // namespace
 
 int main(int argc, char** argv) {
+  // Positional arguments select versions; --shape=... selects shapes.
+  std::vector<std::string> version_filter;
+  std::string shape_filter;
+  bool list_shapes = false;
+  for (int i = 1; i < argc; ++i) {
+    const std::string arg = argv[i];
+    if (arg == "--list-shapes") {
+      list_shapes = true;
+    } else if (arg.rfind("--shape=", 0) == 0) {
+      shape_filter = arg.substr(8);
+    } else {
+      version_filter.push_back(arg);
+    }
+  }
+
   const auto versions = flash_attn_versions();
 
   std::printf("CPU flash_attn benchmark\n");
   std::printf("OpenMP max threads: %d, hardware threads: %u\n",
               omp_get_max_threads(), std::thread::hardware_concurrency());
+
+  if (list_shapes) {
+    print_usage();
+    return 0;
+  }
 
   if (versions.empty()) {
     std::printf(
@@ -120,6 +166,9 @@ int main(int argc, char** argv) {
   std::printf("%s\n", std::string(84, '-').c_str());
 
   for (const auto& shape : kShapes) {
+    if (!shape_selected(shape.tag, shape_filter))
+      continue;
+
     const std::size_t q_elems = static_cast<std::size_t>(shape.batch) *
                                 shape.heads * shape.seq_q * shape.head_dim;
     const std::size_t kv_elems = static_cast<std::size_t>(shape.batch) *
@@ -137,7 +186,7 @@ int main(int argc, char** argv) {
                                  shape.seq_k, shape.head_dim, causal);
 
       for (const auto& version : versions) {
-        if (!enabled(version.name, argc, argv))
+        if (!version_enabled(version.name, version_filter))
           continue;
 
         version.fn(params);  // warmup
